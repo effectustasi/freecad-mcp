@@ -113,3 +113,19 @@ def test_parse_command() -> None:
     assert parse_command("flatpak run --command=freecadcmd org.freecad.FreeCAD") == [
         "flatpak", "run", "--command=freecadcmd", "org.freecad.FreeCAD",
     ]
+
+
+def test_parse_command_windows_path_with_spaces() -> None:
+    path = r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe"
+    assert parse_command(r"C:\\FreeCAD\\bin\\freecadcmd.exe", posix=False) == [
+        r"C:\\FreeCAD\\bin\\freecadcmd.exe"
+    ]
+    assert parse_command(f'"{path}"', posix=False) == [path]
+    assert parse_command(f'"{path}" --console', posix=False) == [path, "--console"]
+
+
+def test_parse_command_existing_path_with_spaces(tmp_path) -> None:
+    exe = tmp_path / "Free CAD" / "freecadcmd"
+    exe.parent.mkdir()
+    exe.write_text("")
+    assert parse_command(str(exe)) == [str(exe)]

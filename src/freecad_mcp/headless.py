@@ -43,8 +43,20 @@ def detect_freecadcmd() -> list[str] | None:
     return None
 
 
-def parse_command(value: str | None) -> list[str] | None:
-    return shlex.split(value) if value else None
+def parse_command(value: str | None, posix: bool | None = None) -> list[str] | None:
+    if not value:
+        return None
+    # A bare path to an existing executable is a single argument, even when it
+    # contains spaces.
+    if Path(value).is_file():
+        return [value]
+    if posix is None:
+        posix = os.name != "nt"
+    parts = shlex.split(value, posix=posix)
+    if not posix:
+        # Non-POSIX mode keeps the quotes in the token; drop them.
+        parts = [p[1:-1] if len(p) >= 2 and p[0] == p[-1] and p[0] in "\"'" else p for p in parts]
+    return parts
 
 
 def _script_dir() -> Path:
