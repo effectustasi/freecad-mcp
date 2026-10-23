@@ -561,3 +561,31 @@ def test_scripts_and_job_queries_do_not_scan_unrelated_documents(rpc_module: typ
     job_id = rpc.execute_code_async("value += 1")["job_id"]
     assert wait_for_job(rpc, job_id)["state"] == "done"
     assert rpc.execute_code("print(value)")["message"].endswith("43\n")
+
+
+def test_reload_document_reports_the_name_freecad_gave_the_reopened_document(
+    rpc_module: types.ModuleType, tmp_path: Path,
+) -> None:
+    rpc_module.test_dispatch._waker = types.SimpleNamespace(
+        wake=lambda: rpc_module.test_dispatch.process_gui_tasks(reschedule=False)
+    )
+    freecad = rpc_module.FreeCAD
+    file_path = tmp_path / "handle_concept_3d.FCStd"
+    file_path.write_bytes(b"")
+    documents = {"HandleConcept3D": types.SimpleNamespace(FileName=str(file_path))}
+    freecad.listDocuments = lambda: dict(documents)
+    freecad.getDocument = lambda name: documents[name]
+    freecad.closeDocument = lambda name: documents.pop(name)
+
+    def open_document(path: str) -> object:
+        # FreeCAD names a reopened document after the file stem.
+        doc = types.SimpleNamespace(Name=Path(path).stem, FileName=path)
+        documents[doc.Name] = doc
+        return doc
+
+    freecad.openDocument = open_document
+
+    result = rpc_module.FreeCADRPC().reload_document("HandleConcept3D")
+
+    assert result == {"success": True, "document_name": "handle_concept_3d"}
+    assert list(documents) == ["handle_concept_3d"]
